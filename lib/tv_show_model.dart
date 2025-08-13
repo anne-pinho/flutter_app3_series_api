@@ -28,14 +28,103 @@ class TvShow {
       summary: json['summary'] ?? 'Sem resumo disponível.',
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'imageUrl': imageUrl,
+      'name': name,
+      'webChannel': webChannel,
+      'rating': rating,
+      'summary': summary,
+    };
+  }
 }
 
 class TvShowModel extends ChangeNotifier {
-  final TvShowService _tvShowService = TvShowService();
+  late final TvShowService _tvShowService;
 
-  final List<TvShow> _tvShows = [];
+  TvShowModel() {
+    _tvShowService = TvShowService();
+    initialize();
+  }
+
+  //Estados das series favoritas
+  List<TvShow> _tvShows = [];
+  bool _isLoading = false;
+  String? _errorMessage;
+
   List<TvShow> get tvShows => _tvShows;
+  bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
+  bool get hasFavorites => _tvShows.isNotEmpty;
 
+  //DB
+  Future<void> initialize() async {
+    await load();
+  }
+
+  void _setError(String? error) {
+    _errorMessage = error;
+    notifyListeners();
+  }
+
+  void _setLoading(bool loading) {
+    _isLoading = loading;
+    notifyListeners();
+  }
+
+  //Carrega series favoritas no BD
+  Future<void> load() async {
+    try {
+      _setLoading(true);
+      _setError(null);
+      _tvShows = await _tvShowService.getAll();
+    } catch (e) {
+      _setError('Falha ao carregar séries favoritas: ${e.toString()}');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<void> addToFavorites(TvShow tvShow) async {
+    await _tvShowService.insert(tvShow);
+    notifyListeners();
+  }
+
+  Future<void> removeFromFavorites(TvShow tvShow) async {
+    await _tvShowService.delete(tvShow.id);
+    notifyListeners();
+  }
+
+  Future<bool> isFavorite(TvShow tvShow) async {
+    try {
+      return await _tvShowService.isFavorite(tvShow);
+    } catch (e) {
+      _setError('Falha ao verificar se é favorito: ${e.toString()}');
+      return false;
+    }
+  }
+
+  // Ordena as séries favoritas por nome
+  void sortByName(bool ascending) {
+    _tvShows.sort(
+      (a, b) => ascending ? a.name.compareTo(b.name) : b.name.compareTo(a.name),
+    );
+    notifyListeners();
+  }
+
+  // Ordena as séries favoritas por nota
+  void sortByRating(bool ascending) {
+    _tvShows.sort(
+      (a, b) => ascending
+          ? a.rating.compareTo(b.rating)
+          : b.rating.compareTo(a.rating),
+    );
+    notifyListeners();
+  }
+
+  //API
   Future<TvShow> getTvShowById(int id) async {
     try {
       return await _tvShowService.fetchTvShowById(id);
